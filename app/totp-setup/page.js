@@ -319,6 +319,7 @@ export default function TotpSetupPage() {
         <div className="w-full flex justify-center mt-4">
         <button className="w-1/2 text-sm" disabled={!(token.length === 6 && /^\d+$/.test(token))} onClick={handleVerifyMfa}>送信</button>
         </div>
+        <p className="text-center mt-5">認証切れ：30分</p>
         </div>
       )}
       </>
