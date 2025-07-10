@@ -6,7 +6,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from 'next/navigation';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
-import styles from "../page.module.css";
+import styles from "../../page.module.css";
 
 export default function TotpSetupPage() {
   const { data: session, status } = useSession();
@@ -80,7 +80,7 @@ export default function TotpSetupPage() {
     setTotpSecret(data.totpSecret ?? false);
     setTotpVerify(data.totpVerify);
     setTotpDrop(data.totpDrop);
-    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.totpSecret);
+    const otpauth = authenticator.keyuri(session.user.email, process.env.NEXT_PUBLIC_APP_NAME, data.totpSecret);
     const qrImageUrl = await QRCode.toDataURL(otpauth);
     setQrCode(qrImageUrl);
   };
@@ -116,8 +116,8 @@ export default function TotpSetupPage() {
   }
 
   const handleClipboardCodeName = async () => {
-    await navigator.clipboard.writeText('TOTP_NEXT_demo');
-    alert(`コード名「TOTP_NEXT_demo」をコピーしました。`);
+    await navigator.clipboard.writeText(process.env.NEXT_PUBLIC_APP_NAME + ': ' + session.user.email);
+    alert(`コード名「` + process.env.NEXT_PUBLIC_APP_NAME + `」をコピーしました。`);
   }
 
   const handleFocus = async () => {
@@ -129,77 +129,77 @@ export default function TotpSetupPage() {
   }
 
 
-    const handleVerifyMfa = async () => {
-      // console.log('handleVerifyMfa =>');
-      const res = await fetch('/api/totp/verify', {
+  const handleVerifyMfa = async () => {
+    // console.log('handleVerifyMfa =>');
+    const res = await fetch('/api/totp/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: session.user.id,
+        token: token,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      // console.log("2FAトークン検証に失敗しました:", data.message);
+      setToken('');
+      alert(data.message || "トークンの検証に失敗しました");
+      return;
+    }
+    // 成功した場合、UIリセット
+    setSecretKey(null);
+    setQrCode(null);
+    setShowQrCode(false);
+    setShowSecretKey(false);
+    setShowVerify(false);
+    setToken('');
+    router.push("/");
+    // alert("✅ MFA 検証成功しました！");
+  }
+
+  const handleDropMfa = async () => {
+    try {
+      // console.log('handleDropMfa', session.user.id);
+      const res = await fetch('/api/totp/drop', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: session.user.id,
-          token: token,
+          userId: session.user.id, // ※ 'id' キーを使う
         }),
       });
-
       const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        // console.log("2FAトークン検証に失敗しました:", data.message);
-        setToken('');
-        alert(data.message || "トークンの検証に失敗しました");
+      if (!res.ok) {
+        console.error('Error:', data.error);
+        alert('TOTP設定の解除に失敗しました');
         return;
       }
-      // 成功した場合、UIリセット
+      // console.log('Drop MFA result:', data);
       setSecretKey(null);
       setQrCode(null);
       setShowQrCode(false);
       setShowSecretKey(false);
-      setShowVerify(false);
-      setToken('');
-      router.push("/");
-      // alert("✅ MFA 検証成功しました！");
+      // console.log(data);
+      setTotpSecret(data?.totpSecret);
+      setShowVerify(data?.totpVerify);
+      setTotpDrop(data?.totpDrop);
+      alert('MFAが解除されました');
+
+      // 画面更新やステータス更新があればここで実施
+    } catch (err) {
+      console.error('Request failed', err);
+      alert('エラーが発生しました');
     }
-
-    const handleDropMfa = async () => {
-      try {
-        // console.log('handleDropMfa', session.user.id);
-        const res = await fetch('/api/totp/drop', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            userId: session.user.id, // ※ 'id' キーを使う
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          console.error('Error:', data.error);
-          alert('TOTP設定の解除に失敗しました');
-          return;
-        }
-        // console.log('Drop MFA result:', data);
-        setSecretKey(null);
-        setQrCode(null);
-        setShowQrCode(false);
-        setShowSecretKey(false);
-        console.log(data);
-        setTotpSecret(data?.totpSecret);
-        setShowVerify(data?.totpVerify);
-        setTotpDrop(data?.totpDrop);
-        alert('MFAが解除されました');
-
-        // 画面更新やステータス更新があればここで実施
-      } catch (err) {
-        console.error('Request failed', err);
-        alert('エラーが発生しました');
-      }
-    };
+  };
 
   return (
     <div className="grid items-center justify-items-center min-h-screen px-8 pb-20 gap-8 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-    <main className="flex flex-col gap-[32px] row-start-2 items-center items-start">
+    <main className="flex flex-col gap-[20px] row-start-2 items-center items-start">
     <div className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center m-auto">
     <Link href="/">
     <Image
@@ -229,6 +229,18 @@ export default function TotpSetupPage() {
       </div>
     ) : session ? (
       <>
+      <div className={`${styles.ctas} m-auto underline`}>
+      <Link href="/setting">
+      <Image
+      className={`${styles.logo} mr-2`}
+      src="/gear-solid.svg"
+      alt="gear-solid"
+      width={15}
+      height={15}
+      />
+      setting
+      </Link>
+      </div>
       <div className={`${styles.ctas} m-auto text-center`}>
       <p>ようこそ、{session.user.name} さん</p>
       </div>
@@ -291,7 +303,7 @@ export default function TotpSetupPage() {
         <p className="mb-5">以下のコード名とシークレットキーをAuthenticatorアプリに入力して下さい。</p>
         <p className="mb-3 text-sm">コード名（任意）</p>
         <button className="mb-3 w-[200]" onClick={handleClipboardCodeName}>
-        TOTP_NEXT_demo
+        {process.env.NEXT_PUBLIC_APP_NAME}
         </button>
         <p className="my-3 text-sm">シークレットキー</p>
         <div className="w-full">
@@ -338,7 +350,7 @@ export default function TotpSetupPage() {
     </main>
 
     <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-
+    This is MFA page.
     </footer>
     </div>
   );

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { authenticator } from 'otplib';
-import { getMongoDb } from '@/lib/mongodb';
+import { getMongoClient } from '@/lib/mongodb';
 import { decrypt } from '@/lib/crypto';
+import { hashUserId } from '@/lib/hash';
 
 export async function POST(request) {
   const { userId, token } = await request.json();
@@ -14,8 +15,11 @@ export async function POST(request) {
     return NextResponse.json({ success: false, message: '無効なトークン形式です' }, { status: 400 });
   }
 
-  const db = await getMongoDb();
-  const user = await db.collection('users').findOne({ userId });
+  const client = await getMongoClient();
+  const hashedId = hashUserId(userId);
+  const dbName = `user_${hashedId}`;
+  const db = client.db(dbName);
+  const user = await db.collection('totp').findOne({ userId });
 
   if (!user || !user.totpSecret) {
     return NextResponse.json({ success: false, message: '認証に失敗しました' }, { status: 400 });
@@ -32,8 +36,8 @@ export async function POST(request) {
   const isValid = authenticator.check(token, secret);
 
   try {
-    await db.collection('users').updateOne(
-      { userId },
+    await db.collection('totp').updateOne(
+      { hashedId },
       {
         $set: {
           totpVerify: isValid,

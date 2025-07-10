@@ -11,6 +11,7 @@ import styles from "./page.module.css";
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const [connectedProjects, setConnectedProjects] = useState([]);
   const [secretKey, setSecretKey] = useState(null);
   const [qrCode, setQrCode] = useState(null);
   const [showSecretKey, setShowSecretKey] = useState(false);
@@ -27,9 +28,28 @@ export default function Home() {
 
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (!session?.user?.id || !session?.user?.email) return;
-    fetchTotpVerify(session.user.id, session.user.email);
+
+    const userId = session?.user?.id;
+    const email = session?.user?.email;
+
+    if (!userId || !email) return;
+
+    fetchConnectedProjects(userId);
+    fetchTotpVerify(userId, email);
   }, [session, status]);
+
+  const fetchConnectedProjects = async (id) => {
+    try {
+      const res = await fetch(`/api/projects/is-connected?userId=${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error("接続中のプロジェクト取得に失敗しました");
+      const data = await res.json();
+      // console.log(data);
+      setConnectedProjects(data);
+    } catch (err) {
+      console.error("fetchConnectedProjects error:", err);
+      setConnectedProjects([]);
+    }
+  };
 
   const fetchTotpVerify = async (id, email) => {
     try {
@@ -70,7 +90,7 @@ export default function Home() {
     }
     const data = await res.json();
     setSecretKey(data.totpSecret);
-    const otpauth = authenticator.keyuri('demo', 'TOTP_MongoDB_NEXT', data.totpSecret);
+    const otpauth = authenticator.keyuri(session.user.email, process.env.NEXT_PUBLIC_APP_NAME, data.totpSecret);
     const qrImageUrl = await QRCode.toDataURL(otpauth);
     setQrCode(qrImageUrl);
   };
@@ -113,8 +133,8 @@ export default function Home() {
   }
 
   const handleClipboardCodeName = async () => {
-    await navigator.clipboard.writeText('TOTP_NEXT_demo');
-    alert(`コード名「TOTP_NEXT_demo」をコピーしました。`);
+    await navigator.clipboard.writeText(process.env.NEXT_PUBLIC_APP_NAME + ': ' + session.user.email);
+    alert(`コード名「` + process.env.NEXT_PUBLIC_APP_NAME + `」をコピーしました。`);
   }
 
   const handleFocus = async () => {
@@ -320,7 +340,7 @@ export default function Home() {
           <p className="mb-5">以下のコード名とシークレットキーをAuthenticatorアプリに入力して下さい。</p>
           <p className="mb-3 text-sm">コード名（任意）</p>
           <button className="mb-3 w-[200]" onClick={handleClipboardCodeName}>
-          TOTP_NEXT_demo
+          {process.env.NEXT_PUBLIC_APP_NAME}
           </button>
           <p className="my-3 text-sm">シークレットキー</p>
           <div className="w-full">
@@ -404,7 +424,7 @@ export default function Home() {
 
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-    <main className="flex flex-col gap-[32px] row-start-2 items-center items-start">
+    <main className="flex flex-col gap-[15px] row-start-2 items-center items-start">
     <div className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center m-auto">
     <Image
     className="dark:invert"
@@ -424,8 +444,19 @@ export default function Home() {
     />
     </div>
 
-    <div className={`${styles.ctas} m-auto text-center`}>
+    <div className={`${styles.ctas} m-auto text-center mt-5`}>
     <p>ようこそ、{session.user.name} さん</p>
+    </div>
+    <div className={`${styles.ctas} m-auto text-center mb-5`}>
+    {connectedProjects.length > 0 ? (
+      connectedProjects.map(p => (
+        <p key={p.appName} className="rounded">
+        ✅ 接続中：{p.appName}
+        </p>
+      ))
+    ) : (
+      <p className="text-sm text-gray-500">現在接続中のプロジェクトはありません。</p>
+    )}
     </div>
     <div className={`${styles.ctas} m-auto`}>
     <Link href="/export" className={styles.secondary}>
@@ -447,6 +478,16 @@ export default function Home() {
     height={20}
     />
     import
+    </Link>
+    <Link href="/drop" className={styles.secondary}>
+    <Image
+    className={styles.logo}
+    src="/trash-solid.svg"
+    alt="mongodb-file-delete"
+    width={20}
+    height={20}
+    />
+    drop
     </Link>
     <Link href="/setting" className={styles.secondary}>
     <Image

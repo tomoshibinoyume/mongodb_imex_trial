@@ -2,12 +2,15 @@ import { NextResponse } from 'next/server';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
 import { encrypt } from '@/lib/crypto';
-import { getMongoDb } from '@/lib/mongodb';
+import { hashUserId } from '@/lib/hash';
+import { getMongoClient } from '@/lib/mongodb';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get("id");
-  const email = searchParams.get("email"); // UI側で渡してもOK（任意）
+  const hashedId = hashUserId(userId);
+  const dbName = `user_${hashedId}`;
+  // const email = searchParams.get("email"); // UI側で渡してもOK（任意）
   if (!userId) {
     return NextResponse.json({ error: "userId is required" }, { status: 400 });
   }
@@ -15,12 +18,14 @@ export async function GET(request) {
   const encryptedSecret = encrypt(secret);
   // const otpauth = authenticator.keyuri(email || userId, 'TOTP_AUTH0_NEXT', secret); // fallback: userId
   // const qr = await QRCode.toDataURL(otpauth);
-  const db = await getMongoDb();
-  await db.collection('users').updateOne(
-    { userId },
+  const client = await getMongoClient(); // ← 必ず await してから db() を使う
+  const db = client.db(dbName);
+  await db.collection('totp').updateOne(
+    { hashedId },
     {
       $set: {
-        email,
+        userId,
+        hashedId,
         totpSecret: encryptedSecret,
         totpVerify: false,
         totpDrop: false,

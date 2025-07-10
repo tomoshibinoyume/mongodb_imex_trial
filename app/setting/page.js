@@ -116,7 +116,7 @@ export default function SettingPage() {
           <p>ようこそ、{session.user.name} さん</p>
           </div>
           <div className={`${styles.ctas} m-auto`}>
-          <Link href="/totp-setup" className={styles.secondary}>
+          <Link href="/setting/totp-setup" className={styles.secondary}>
           <Image
           className={styles.logo}
           src="/key-solid.svg"
@@ -125,6 +125,16 @@ export default function SettingPage() {
           height={20}
           />
           多要素認証
+          </Link>
+          <Link href="/setting/projects" className={styles.secondary}>
+          <Image
+          className={styles.logo}
+          src="/database-solid.svg"
+          alt="database-solid"
+          width={20}
+          height={20}
+          />
+          プロジェクト
           </Link>
           </div>
           <div className={`${styles.ctas} m-auto`}>
@@ -141,7 +151,7 @@ export default function SettingPage() {
       </main>
 
       <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-
+      This is setting page.
       </footer>
       </div>
     );

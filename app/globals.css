@@ -50,6 +50,10 @@ input[type="text"], textarea {
   text-align: center;
 }
 
+textarea {
+  text-align: left;
+}
+
 button, .input_file {
   border: solid 1px white;
   border-radius: 2em;
